@@ -35,6 +35,8 @@ class Variable:
 
 def as_array(x):
     #判断是不是标量
+        #标量是单个数值,不是数组
+        #这里将其变为数组
     if np.isscalar(x):
         return np.array(x)
     return x
