@@ -14,6 +14,9 @@ class Variable:
     def set_creator(self,func):
         self.creator = func
 
+    def cleargrad(self):
+        self.grad = None
+
     def backward(self):
         if self.grad is None:
             self.grad = np.ones_like(self.data)
@@ -21,11 +24,20 @@ class Variable:
         funcs = [self.creator]
         while funcs:
             f = funcs.pop()
-            x,y = f.input,f.output
-            x.grad = f.backward(y.grad)
+            gys = [output.grad for output in f.outputs]
+            gxs = f.backward(*gys)
+            if not isinstance(gxs,tuple):
+                gxs = (gxs,)  
+            
+            for x,gx in zip(f.inputs,gxs):
+                if x.grad is None:
+                    x.grad = gx
+                else:
+                    x.grad = x.grad + gx
+                
+                if x.creator is not None:
+                    funcs.append(x.creator)
 
-            if x.creator is not None:
-                funcs.append(x.creator)
 
 
 def as_array(x):
@@ -35,13 +47,10 @@ def as_array(x):
 
 
 class Function:
-    #*出现在函数定义里面是打包,出现在函数调用里面是解包
-        #吧输入作为元组赋值到inputs里面
+     
     def __call__(self,*inputs):
         xs = [x.data for x in inputs]
         ys = self.forward(*xs)
-        #is instance判断是不是这个类型,返回True或者False
-        #针对forward一个元素只返回元素的情况
         if not isinstance(ys,tuple):
             ys = (ys,)
         outputs = [Variable(as_array(y)) for y in ys]
@@ -49,25 +58,51 @@ class Function:
             output.set_creator(self)
         self.inputs = inputs
         self.outputs = outputs
-        #if 条件通过,执行前面的,如果不通过,执行后面的else
         return outputs if len(outputs) > 1 else outputs[0]
     
     def forward(self,xs):
         raise NotImplementedError()
     
-    def backward(self,gys): #g是梯度的意思
+    def backward(self,gys):
         raise NotImplementedError()
+    
+
+ 
+class Square(Function):
+    def forward(self,x):
+        y = x**2
+        return y
+    
+    def backward(self,gy):  
+         
+        x = self.inputs[0].data
+        gx = 2 * x * gy
+        return gx
+    
+def square(x):
+    f = Square()
+    return f(x)
+
     
 class Add(Function):
     def forward(self,x0,x1):
         y = x0 + x1
         return y
     
+    def backward(self,gy):
+        return gy,gy
     
 
 def add(x0,x1):
     return Add()(x0,x1)
 
-a = Variable(np.array(2));b = Variable(np.array(3))
-y = add(a,b)
-print(y.data)
+
+x = Variable(np.array(2.0))
+y = add(x,x)
+y.backward()
+print(x.grad)
+
+x.cleargrad()
+y = add(add(x,x),x)
+y.backward()
+print(x.grad)
