@@ -54,6 +54,10 @@ class Variable:
             if not retain_grad:
                 for y in f.outputs:
                     #注意这里y是弱引用
+                        #弱引用的子属性.grad是强引用,因为绑定的关系没用weakref
+                    #母对象一旦销毁，挂在它身上的绑定关系（属性）会连同母体一同彻底消失。
+                        #这里的的.grad是一个绑定关系只是注意y弱引用只能用()提取对象
+
                     y().grad = None
 
 
@@ -117,6 +121,10 @@ def add(x0,x1):
     return Add()(x0,x1)
 
 
-for i in range(10):
-    x = Variable(np.random.randn(10000))
-    y = square(square(square(x)))
+x0 = Variable(np.array(1.0))
+x1 = Variable(np.array(1.0))
+t = add(x0,x1)
+y = add(x0,t)
+y.backward()
+print(y.grad,t.grad)
+print(x0.grad,x1.grad)
