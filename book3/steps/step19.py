@@ -2,25 +2,15 @@ import numpy as np
 import weakref
 import contextlib
 
-
-#这个没用__init__创建新的实例,代码执行时候会自动创建类对象
-#Config.enable_backprop调取这个变量
-#   记得这是从这个类里面调取的,不是在用类创建的实例里面调取的
-#python一切都是对象,这个类也是,实例也是一个对象,但是是有归属关系的,比如属于哪个类
 class Config:
     enable_backprop = True
 @contextlib.contextmanager
 def using_config(name,value):
-    #提取属性,但是用句号的提取属性是写死的,不能改名,这里的old_value可以解析出来
-    #如果没有这个属性名会报错.setattr(Config,name,old_value,默认值),若没有属性返回默认值
-    #attribute是属性的意思
     old_value = getattr(Config,name)
     setattr(Config,name,value)
     try:
         yield
-    #不是except,不论如何都会执行
     finally:
-        #这是配置这个属性,with结束还原了
         setattr(Config,name,old_value)
 
 def no_grad():
@@ -28,12 +18,13 @@ def no_grad():
 
 
 class Variable:
-    def __init__(self,data):
+    def __init__(self,data,name = None):
         if data is not None:
             if not isinstance(data,np.ndarray):
                 raise TypeError('{} is not supported'.format(type(data)))
 
         self.data = data
+        self.name = name
         self.grad = None
         self.creator = None
         self.generation = 0
@@ -78,10 +69,7 @@ class Variable:
 
             if not retain_grad:
                 for y in f.outputs:
-                    #注意这里y是弱引用
-                        #弱引用的子属性.grad是强引用,因为绑定的关系没用weakref
-                    #母对象一旦销毁，挂在它身上的绑定关系（属性）会连同母体一同彻底消失。
-                        #这里的的.grad是一个绑定关系只是注意y弱引用只能用()提取对象
+
 
                     y().grad = None
 
@@ -160,7 +148,6 @@ with using_config('enable_backprop',False):
     x = Variable(np.array(2.0))
     y = square(x)
 
-#python里面,遇到()会被先执行,然后才是外面的关键字
 with no_grad():
     x = Variable(np.array(2.0))
     y = square(x)
