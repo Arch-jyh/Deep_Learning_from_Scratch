@@ -29,7 +29,6 @@ class Variable:
         self.creator = None
         self.generation = 0
 
-    #python的自带装饰器,将函数伪装成普通的属性,不需要()调用函数了
     @property
     def shape(self):
         return self.data.shape
@@ -38,7 +37,6 @@ class Variable:
     def ndim(self):
         return self.data.ndim
 
-    #元素总个数,len()是获取第一个维度的个数
     @property
     def size(self):
         return self.data.size
@@ -50,13 +48,9 @@ class Variable:
     def __len__(self):
         return len(self.data)
 
-    #print会找变量下的__repr__,而不是变量下的__print__
-        #print是io级别函数,是特殊的
-        #先找__str__,如果没有找__repr__
     def __repr__(self):
         if self.data is None:
             return 'variable(None)'
-        #9个刚好和'variable('对齐
         p = str(self.data).replace('\n','\n' + ' '*9)
         return 'variable(' + p + ')'
 
@@ -167,6 +161,30 @@ def add(x0,x1):
     return Add()(x0,x1)
 
 
-x = Variable(np.array([[1,2,3],[4,5,6]]))
-print(x.shape)
-print(len(x))
+
+class Mul(Function):
+    def forward(self,x0,x1):
+        y = x0 * x1
+        return y
+    def backward(self,gy):
+        x0,x1 = self.inputs[0].data,self.inputs[1].data
+        return gy * x1,gy * x0
+
+def mul(x0,x1):
+    return Mul()(x0,x1)
+
+Variable.__add__ = add
+Variable.__mul__ = mul
+
+
+a = Variable(np.array(3.0))
+b = Variable(np.array(2.0))
+c = Variable(np.array(1.0))
+
+y = a*b + c
+
+y.backward()
+
+print(y)
+print(a.grad)
+print(b.grad)
