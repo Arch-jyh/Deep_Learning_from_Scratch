@@ -99,6 +99,13 @@ class Variable:
                     y().grad = None
 
 
+def as_variable(obj):
+    #判断是不是这个类创建的,class这个语句只是创建类用的
+    #其实数据类型都是类,所以不用class语句
+    if isinstance(obj,Variable):
+        return obj
+    return Variable(obj)
+
 
 def as_array(x):
     if np.isscalar(x):
@@ -107,8 +114,9 @@ def as_array(x):
 
 
 class Function:
-     
     def __call__(self,*inputs):
+        inputs = [as_variable(x) for x in inputs]
+
         xs = [x.data for x in inputs]
         ys = self.forward(*xs)
         if not isinstance(ys,tuple):
@@ -158,6 +166,7 @@ class Add(Function):
     
 
 def add(x0,x1):
+    x1 = as_array(x1)
     return Add()(x0,x1)
 
 
@@ -171,20 +180,22 @@ class Mul(Function):
         return gy * x1,gy * x0
 
 def mul(x0,x1):
+    x1 = as_array(x1)
     return Mul()(x0,x1)
 
 Variable.__add__ = add
+Variable.__radd__ = add
 Variable.__mul__ = mul
+Variable.__rmul__ = mul
 
 
-a = Variable(np.array(3.0))
-b = Variable(np.array(2.0))
-c = Variable(np.array(1.0))
-
-y = a*b + c
-
-y.backward()
-
+x = Variable(np.array(2.0))
+y = x + np.array(3.0)
 print(y)
-print(a.grad)
-print(b.grad)
+
+x = Variable(np.array(2.0))
+y = x + 3.0
+print(y)
+
+y = 3.0 * x + 1.0
+print(y)
