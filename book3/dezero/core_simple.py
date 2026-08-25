@@ -18,8 +18,6 @@ def no_grad():
 
 
 class Variable:
-    #ndarray会检查对象的这个属性,如果没有定义,ndarray接管运算,如果有,按照优先级排序运算
-    #ndarray的默认优先级是0.0
     __array_priority__ = 200
 
     def __init__(self,data,name = None):
@@ -104,8 +102,6 @@ class Variable:
 
 
 def as_variable(obj):
-    #判断是不是这个类创建的,class这个语句只是创建类用的
-    #其实数据类型都是类,所以不用class语句
     if isinstance(obj,Variable):
         return obj
     return Variable(obj)
@@ -141,23 +137,6 @@ class Function:
     
     def backward(self,gys):
         raise NotImplementedError()
-    
-
- 
-class Square(Function):
-    def forward(self,x):
-        y = x**2
-        return y
-    
-    def backward(self,gy):  
-         
-        x = self.inputs[0].data
-        gx = 2 * x * gy
-        return gx
-    
-def square(x):
-    f = Square()
-    return f(x)
 
     
 class Add(Function):
@@ -187,23 +166,80 @@ def mul(x0,x1):
     x1 = as_array(x1)
     return Mul()(x0,x1)
 
-#这相当于给类添加了一个属性
-    #方法和函数底层是一样的,这里单独给Variable一个属性赋值了方法
-    #防止用def定义add的方法后,内部调用但语句没有执行到定义部分
-        #像是内部调用了Function,但这时候Function还没定义
-Variable.__add__ = add
-Variable.__radd__ = add
-Variable.__mul__ = mul
-Variable.__rmul__ = mul
+
+class Neg(Function):
+    def forward(self,x):
+        return -x
+
+    def backward(self,gy):
+        return -gy
+
+def neg(x):
+    return Neg()(x)
 
 
-x = Variable(np.array(2.0))
-y = x + np.array(3.0)
-print(y)
+class Sub(Function):
+    def forward(self,x0,x1):
+        y = x0 - x1
+        return y
 
-x = Variable(np.array(2.0))
-y = x + 3.0
-print(y)
+    def backward(self,gy):
+        return gy,-gy
 
-y = 3.0 * x + 1.0
-print(y)
+def sub(x0,x1):
+    x1 = as_array(x1)
+    return Sub()(x0,x1)
+
+def rsub(x0,x1):
+    x1 = as_array(x1)
+    return sub(x1,x0)
+
+
+class Div(Function):
+    def forward(self,x0,x1):
+        y = x0 / x1
+        return y
+    def backward(self,gy):
+        x0,x1 = self.inputs[0].data,self.inputs[1].data
+        gx0 = gy / x1
+        gx1 = gy * (-x0 / x1 ** 2)
+        return gx0,gx1
+
+def div(x0,x1):
+    x1 = as_array(x1)
+    return Div()(x0,x1)
+
+def rdiv(x0,x1):
+    x1 = as_array(x1)
+    return div(x1,x0)
+
+class Pow(Function):
+    def __init__(self,c):
+        self.c = c
+
+    def forward(self,x):
+        y = x ** self.c
+        return y
+
+    def backward(self,gy):
+        x = self.inputs[0].data
+        c = self.c
+
+        gx = c * x ** (c - 1) * gy
+        return gx
+
+def pow(x,c):
+    return Pow(c)(x)
+
+
+def setup_variable():
+    Variable.__add__ = add
+    Variable.__radd__ = add
+    Variable.__mul__ = mul
+    Variable.__rmul__ = mul
+    Variable.__neg__ = neg
+    Variable.__sub__ = sub
+    Variable.__rsub__ = rsub
+    Variable.__truediv__ = div
+    Variable.__rtruediv__ = rdiv
+    Variable.__pow__ = pow

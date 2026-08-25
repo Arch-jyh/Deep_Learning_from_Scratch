@@ -18,8 +18,6 @@ def no_grad():
 
 
 class Variable:
-    #ndarray会检查对象的这个属性,如果没有定义,ndarray接管运算,如果有,按照优先级排序运算
-    #ndarray的默认优先级是0.0
     __array_priority__ = 200
 
     def __init__(self,data,name = None):
@@ -187,23 +185,102 @@ def mul(x0,x1):
     x1 = as_array(x1)
     return Mul()(x0,x1)
 
-#这相当于给类添加了一个属性
-    #方法和函数底层是一样的,这里单独给Variable一个属性赋值了方法
-    #防止用def定义add的方法后,内部调用但语句没有执行到定义部分
-        #像是内部调用了Function,但这时候Function还没定义
+
+class Neg(Function):
+    def forward(self,x):
+        return -x
+
+    def backward(self,gy):
+        return -gy
+
+def neg(x):
+    #执行call的魔术方法
+    return Neg()(x)
+
+
+class Sub(Function):
+    def forward(self,x0,x1):
+        y = x0 - x1
+        return y
+
+    def backward(self,gy):
+        return gy,-gy
+
+def sub(x0,x1):
+    x1 = as_array(x1)
+    return Sub()(x0,x1)
+
+def rsub(x0,x1):
+    #Function里面还会执行一次变为Variable的,这个变为过程的输入至少必须是array
+    x1 = as_array(x1)
+    return sub(x1,x0)
+
+
+class Div(Function):
+    def forward(self,x0,x1):
+        y = x0 / x1
+        return y
+    def backward(self,gy):
+        x0,x1 = self.inputs[0].data,self.inputs[1].data
+        gx0 = gy / x1
+        gx1 = gy * (-x0 / x1 ** 2)
+        return gx0,gx1
+
+def div(x0,x1):
+    x1 = as_array(x1)
+    return Div()(x0,x1)
+
+def rdiv(x0,x1):
+    x1 = as_array(x1)
+    return div(x1,x0)
+
+class Pow(Function):
+    #父类Function直接是__call__没有__init__
+    #所以这里直接定义__init__,不需要super调用父类方法
+    def __init__(self,c):
+        self.c = c
+
+    def forward(self,x):
+        y = x ** self.c
+        return y
+
+    def backward(self,gy):
+        x = self.inputs[0].data
+        c = self.c
+
+        gx = c * x ** (c - 1) * gy
+        return gx
+
+def pow(x,c):
+    return Pow(c)(x)
+
+
 Variable.__add__ = add
 Variable.__radd__ = add
 Variable.__mul__ = mul
 Variable.__rmul__ = mul
+Variable.__neg__ = neg
+Variable.__sub__ = sub
+Variable.__rsub__ = rsub
+#除法有两个,一个是真除法和截断除法(不是四舍五入,是省略小数点后的数)
+Variable.__truediv__ = div
+Variable.__rtruediv__ = rdiv
+Variable.__pow__ = pow
+
 
 
 x = Variable(np.array(2.0))
-y = x + np.array(3.0)
+y = -x
 print(y)
 
-x = Variable(np.array(2.0))
-y = x + 3.0
+
+y1 = 2.0 - x
+y2 = x - 1.0
+print(y1,y2)
+
+y = 3.0 / x
 print(y)
 
-y = 3.0 * x + 1.0
+y = x**3
+y.backward()
 print(y)
