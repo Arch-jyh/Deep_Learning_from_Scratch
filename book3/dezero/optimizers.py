@@ -1,0 +1,101 @@
+import math
+from dezero import Parameter
+import numpy as np
+
+
+class Optimizer:
+    def __init__(self):
+        self.target = None
+        #初始化钩子函数列表
+        self.hooks = []
+
+    def setup(self, target):
+        #target是被优化对象,比如MLP
+        self.target = target
+        #链式调用
+        return self
+
+    def update(self):
+        params = [p for p in self.target.params() if p.grad is not None]
+
+        #用每一个勾函数预处理
+        #hooks如果是空的,直接跳过
+        for f in self.hooks:
+            f(params)
+
+        for param in params:
+            self.update_one(param)
+
+    def update_one(self, param):
+        #继承的优化器类里面重写
+        raise NotImplementedError()
+
+    def add_hook(self, f):
+        self.hooks.append(f)
+
+
+#这里的S是随机的意思,随机不在这里,在之前的抽取
+    #因为之前的训练的数据的抽取是随机的所以叫SGD,但是优化器还是按自己的方式处理数据
+class SGD(Optimizer):
+    def __init__(self,lr = 0.01):
+        super().__init__()
+        self.lr = lr
+    def update_one(self,param):
+        param.data -= self.lr * param.grad.data
+
+
+class MomentumSGD(Optimizer):
+    def __init__(self, lr=0.01, momentum=0.9):
+        super().__init__()
+        self.lr = lr
+        self.momentum = momentum
+        self.vs = {}
+
+    def update_one(self, param):
+        v_key = id(param)
+        if v_key not in self.vs:
+            self.vs[v_key] = np.zeros_like(param.data)
+
+        v = self.vs[v_key]
+        v *= self.momentum
+        v -= self.lr * param.grad.data
+        param.data += v
+
+
+
+#----------------------未自己编写
+class Adam(Optimizer):
+    def __init__(self, alpha=0.001, beta1=0.9, beta2=0.999, eps=1e-8):
+        super().__init__()
+        self.t = 0
+        self.alpha = alpha
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.eps = eps
+        self.ms = {}
+        self.vs = {}
+
+    def update(self, *args, **kwargs):
+        self.t += 1
+        super().update(*args, **kwargs)
+
+    @property
+    def lr(self):
+        fix1 = 1. - math.pow(self.beta1, self.t)
+        fix2 = 1. - math.pow(self.beta2, self.t)
+        return self.alpha * math.sqrt(fix2) / fix1
+
+    def update_one(self, param):
+
+        key = id(param)
+        if key not in self.ms:
+            self.ms[key] = np.zeros_like(param.data)
+            self.vs[key] = np.zeros_like(param.data)
+
+        m, v = self.ms[key], self.vs[key]
+        beta1, beta2, eps = self.beta1, self.beta2, self.eps
+        grad = param.grad.data
+
+        m += (1 - beta1) * (grad - m)
+        v += (1 - beta2) * (grad * grad - v)
+        param.data -= self.lr * m / (np.sqrt(v) + eps)
